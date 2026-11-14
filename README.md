@@ -2,8 +2,6 @@
 
 Photo Galaxy is a personal photo gallery set inside an immersive, interactive WebGL universe. A dark, minimal visual field, fluid motion, and a force-directed Voronoi layout bring your photos together by memory, place, and tag.
 
-**Live website:** [photo-galaxy.nightnightdev.workers.dev](https://photo-galaxy.nightnightdev.workers.dev)
-
 ## Run locally
 
 Requirements: Node.js 18+ (Bun is also supported) and a browser with WebGL 2.
@@ -48,6 +46,19 @@ New galleries start empty. Choose **Add your first photo** to begin, or select *
 ## Storage note
 
 Photo data is stored in browser `localStorage`, including resized image data. Browser storage is limited; if it fills, export or remove some photos before adding more. The app does not provide cloud backup or cross-device sync.
+
+## Limitations
+
+Photo Galaxy is currently a browser-based personal photo gallery. The following limitations apply to the current version:
+
+- **Browser-local storage:** Photos, tags, and favorites are stored in the browser's local storage rather than on a cloud server.
+- **No cloud backup:** Uploaded photos are not automatically backed up to the cloud.
+- **Browser storage limits:** The number and size of photos you can store depend on the available browser storage. Adding too many large images may cause storage errors.
+- **Data loss risk:** Clearing browser data, site storage, or using a different browser may result in losing access to your saved gallery.
+- **WebGL 2 requirement:** The interactive galaxy visualization requires a browser and device that support WebGL 2.
+- **Device performance:** Animation smoothness and rendering performance depend on the device's GPU, memory, and browser capabilities.
+
+These limitations may be addressed in future versions through cloud storage, backup functionality, synchronization, and additional performance optimizations.
 
 ## Credits and licenses
 
