@@ -11,7 +11,7 @@ Disallow: /assets/
 # Crawl-delay: 1
 
 # Sitemap location
-Sitemap: https://photo-galaxy.nightnightdev.workers.dev/sitemap.xml
+Sitemap: https://photo-galaxy-six.vercel.app/sitemap.xml
 # Block known problematic bots (optional)
 # User-agent: SemrushBot
 # Disallow: /
