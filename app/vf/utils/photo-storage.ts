@@ -257,27 +257,30 @@ const migrateLegacyPhotos = async (db: IDBDatabase): Promise<void> => {
   // Read every migrated image back before recording success or touching legacy data.
   const verifyTx = db.transaction(IMAGE_STORE, 'readonly')
   const verifyDone = transactionDone(verifyTx)
-  const verifyStore = verifyTx.objectStore(IMAGE_STORE)
+  const storedImages = await requestResult<StoredImage[]>(
+    verifyTx.objectStore(IMAGE_STORE).getAll(),
+  )
+  await verifyDone
+  const verifiedImages = new Map(
+    storedImages.map((image) => [image.id, image.blob]),
+  )
   let verified = true
   for (const { photo, blob } of converted) {
     if (!blob) continue
-    const stored = await requestResult<StoredImage | undefined>(
-      verifyStore.get(photo.id),
-    )
+    const storedBlob = verifiedImages.get(photo.id)
     if (
-      !stored?.blob ||
-      stored.blob.size !== blob.size ||
-      stored.blob.type !== blob.type
+      !storedBlob ||
+      storedBlob.size !== blob.size ||
+      storedBlob.type !== blob.type
     ) {
       verified = false
       break
     }
-    if (!(await blobsMatch(blob, stored.blob))) {
+    if (!(await blobsMatch(blob, storedBlob))) {
       verified = false
       break
     }
   }
-  await verifyDone
   if (!verified) {
     throw new Error(
       'Photo migration verification failed. Your original saved gallery is still intact; retry to continue.',
