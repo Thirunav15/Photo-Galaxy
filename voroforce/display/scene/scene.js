@@ -69,9 +69,32 @@ export default class Scene extends BaseScene {
   }
 
   beforeUpdateCustom() {
-    this.cellCoordsTexture.needsUpdate = true
-    this.cellWeightsTexture.needsUpdate = true
-    this.cellMediaVersionsTexture.needsUpdate = true
+    this.updateDataTexture(this.cellCoordsTexture)
+    this.updateDataTexture(this.cellWeightsTexture)
+    this.updateDataTexture(this.cellMediaVersionsTexture)
+  }
+
+  updateDataTexture(texture) {
+    // OGL uses texImage2D for a dirty data texture, reallocating its storage.
+    // Initialize it once through OGL, then upload subsequent frame data in place.
+    if (texture.store.image !== texture.image || texture.needsUpdate) {
+      texture.update(0)
+      return
+    }
+
+    this.gl.renderer.activeTexture(0)
+    texture.bind()
+    this.gl.texSubImage2D(
+      this.gl.TEXTURE_2D,
+      texture.level,
+      0,
+      0,
+      texture.width,
+      texture.height,
+      texture.format,
+      texture.type,
+      texture.image,
+    )
   }
 
   afterUpdateCustom() {

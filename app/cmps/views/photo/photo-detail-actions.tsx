@@ -29,6 +29,7 @@ export const PhotoDetailActions = ({
   }))
 
   const [downloading, setDownloading] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
 
   if (!activePhoto) return null
 
@@ -57,13 +58,22 @@ export const PhotoDetailActions = ({
     }
   }
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     const confirmed = window.confirm(
       `Are you sure you want to remove "${activePhoto.title}" from your Photo Galaxy?`,
     )
     if (confirmed) {
-      deletePhoto(activePhoto.id)
-      handleClose?.()
+      setDeleteError('')
+      try {
+        await deletePhoto(activePhoto.id)
+        handleClose?.()
+      } catch (error) {
+        setDeleteError(
+          error instanceof Error
+            ? error.message
+            : 'Photo could not be deleted.',
+        )
+      }
     }
   }
 
@@ -116,13 +126,19 @@ export const PhotoDetailActions = ({
         <Button
           type='button'
           variant='ghost'
-          onClick={handleDelete}
+          onClick={() => void handleDelete()}
           className='h-10 w-full cursor-pointer justify-start gap-2 rounded-lg bg-rose-500/[0.06] px-3 text-sm font-medium text-rose-300 shadow-none transition-colors duration-300 hover:bg-rose-500/10 hover:text-rose-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/60'
         >
           <Trash2 className='text-rose-300' />
           Delete from Galaxy
         </Button>
       </div>
+
+      {deleteError ? (
+        <p role='alert' className='text-sm text-rose-300'>
+          {deleteError}
+        </p>
+      ) : null}
 
       <div className='-mt-1'>
         <Button

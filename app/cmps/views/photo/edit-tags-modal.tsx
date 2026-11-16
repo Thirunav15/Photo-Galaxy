@@ -35,6 +35,8 @@ export const EditTagsModal = () => {
   )
   const [date, setDate] = useState(activePhoto?.date ?? '')
   const [location, setLocation] = useState(activePhoto?.location ?? '')
+  const [saveError, setSaveError] = useState('')
+  const [saving, setSaving] = useState(false)
 
   // Refresh every draft when opening the editor or switching to another photo.
   useEffect(() => {
@@ -65,17 +67,28 @@ export const EditTagsModal = () => {
     setNewTagInput('')
   }
 
-  const handleSave = () => {
-    if (activePhoto) {
-      updatePhotoDetails(activePhoto.id, {
+  const handleSave = async () => {
+    if (!activePhoto) return
+    setSaving(true)
+    setSaveError('')
+    try {
+      await updatePhotoDetails(activePhoto.id, {
         title: title.trim(),
         caption: caption.trim() || undefined,
         date: date || new Date().toISOString().split('T')[0],
         location: location.trim() || undefined,
         tags: currentTags,
       })
+      setOpen(false)
+    } catch (error) {
+      setSaveError(
+        error instanceof Error
+          ? error.message
+          : 'Photo details could not be saved.',
+      )
+    } finally {
+      setSaving(false)
     }
-    setOpen(false)
   }
 
   if (!activePhoto) return null
@@ -248,6 +261,11 @@ export const EditTagsModal = () => {
           </div>
         </div>
 
+        {saveError ? (
+          <p role='alert' className='px-5 text-sm text-rose-300 sm:px-6'>
+            {saveError}
+          </p>
+        ) : null}
         <DialogFooter className='shrink-0 flex-row justify-between gap-2 border-t border-white/10 bg-[#181818] px-5 py-4 sm:px-6'>
           <Button
             type='button'
@@ -259,8 +277,8 @@ export const EditTagsModal = () => {
           </Button>
           <Button
             type='button'
-            onClick={handleSave}
-            disabled={!title.trim()}
+            onClick={() => void handleSave()}
+            disabled={saving || !title.trim()}
             className='cursor-pointer bg-white font-semibold text-black hover:bg-white/90'
           >
             Save Changes

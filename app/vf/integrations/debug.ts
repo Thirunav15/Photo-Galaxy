@@ -6,13 +6,14 @@ export const handleDebug = () => {
   if (!voroforce) return
 
   const dimensions = voroforce.dimensions.get()
+  const pixelRatio = voroforce.display.renderer.getPixelRatio(dimensions)
 
   console.log('dimensions', dimensions)
   console.log(
     'resolution scale',
     emulateResolutionScale([
-      dimensions.width * dimensions.pixelRatio,
-      dimensions.height * dimensions.pixelRatio,
+      dimensions.width * pixelRatio,
+      dimensions.height * pixelRatio,
     ]),
   )
   console.log('cell scale', emulateCellScale(config.cells))

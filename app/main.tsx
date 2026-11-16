@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import App from './app'
 import ErrorBoundary from './cmps/common/error-boundary'
 import config from './config'
+import { store } from './store'
 import { animateDocTitleSuffix } from './utils/anim'
 import { initTelemetry } from './utils/telemetry/init-telemetry'
 import { initVoroforce } from './vf'
@@ -11,7 +12,8 @@ import './styles.css'
 
 initTelemetry()
 
-window.addEventListener('DOMContentLoaded', () => {
+const startApp = async () => {
+  await store.getState().initializePhotoStorage()
   const urlParams = new URLSearchParams(window.location.search)
   const disableUIOverrideParam = urlParams.get('disableUI')
   if (!config.disableUI && !disableUIOverrideParam) {
@@ -28,4 +30,12 @@ window.addEventListener('DOMContentLoaded', () => {
     void initVoroforce({ force: true })
   }
   animateDocTitleSuffix()
-})
+}
+
+if (document.readyState === 'loading') {
+  window.addEventListener('DOMContentLoaded', () => void startApp(), {
+    once: true,
+  })
+} else {
+  void startApp()
+}

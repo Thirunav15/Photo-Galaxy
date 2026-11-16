@@ -54,7 +54,10 @@ export default class Renderer {
   }
 
   getPixelRatio(dimensions = this.dimensions) {
-    return this.config.pixelRatio ?? dimensions.pixelRatio
+    return Math.min(
+      this.config.pixelRatio ?? dimensions.pixelRatio,
+      this.config.maxPixelRatio ?? Number.POSITIVE_INFINITY,
+    )
   }
 
   resize(dimensions = this.dimensions) {

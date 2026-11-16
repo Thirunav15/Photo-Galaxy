@@ -1,28 +1,25 @@
 import { useShallowState } from '@/store'
-import {
-  clusterPhotosByTagOrDate,
-  SEED_PHOTOS,
-} from '@/vf/utils/photos'
+import { clusterPhotosByTagOrDate, SEED_PHOTOS } from '@/vf/utils/photos'
 import { ImagePlus, Sparkles } from 'lucide-react'
-import { type ChangeEvent, useRef } from 'react'
+import { type ChangeEvent, useRef, useState } from 'react'
 import { Button } from '../../ui/button'
 
 export const EmptyGalleryState = () => {
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [sampleError, setSampleError] = useState('')
   const {
     isEmpty,
     setPendingUploadFile,
     setPendingUploadBatch,
     setUploadModalOpen,
     setPhotos,
-  } =
-    useShallowState((state) => ({
-      isEmpty: state.photos.length === 0,
-      setPendingUploadFile: state.setPendingUploadFile,
-      setPendingUploadBatch: state.setPendingUploadBatch,
-      setUploadModalOpen: state.setUploadModalOpen,
-      setPhotos: state.setPhotos,
-    }))
+  } = useShallowState((state) => ({
+    isEmpty: state.photos.length === 0,
+    setPendingUploadFile: state.setPendingUploadFile,
+    setPendingUploadBatch: state.setPendingUploadBatch,
+    setUploadModalOpen: state.setUploadModalOpen,
+    setPhotos: state.setPhotos,
+  }))
 
   if (!isEmpty) return null
 
@@ -47,7 +44,8 @@ export const EmptyGalleryState = () => {
             Your galaxy is waiting
           </h1>
           <p className='mt-3 max-w-lg text-base leading-relaxed text-white/65'>
-            Select one or more photos to start building a private collection of your moments.
+            Select one or more photos to start building a private collection of
+            your moments.
           </p>
         </div>
         <input
@@ -70,12 +68,27 @@ export const EmptyGalleryState = () => {
           <Button
             type='button'
             variant='ghost'
-            onClick={() => setPhotos(clusterPhotosByTagOrDate(SEED_PHOTOS))}
+            onClick={() => {
+              setSampleError('')
+              void setPhotos(clusterPhotosByTagOrDate(SEED_PHOTOS)).catch(
+                (error) =>
+                  setSampleError(
+                    error instanceof Error
+                      ? error.message
+                      : 'Sample photos could not be saved.',
+                  ),
+              )
+            }}
             className='h-10 w-full rounded-lg text-sm text-white/65 transition-colors duration-300 hover:bg-white/5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70'
           >
             <Sparkles className='mr-2 size-4' />
             Explore sample photos
           </Button>
+          {sampleError ? (
+            <p role='alert' className='text-sm text-rose-300'>
+              {sampleError}
+            </p>
+          ) : null}
         </div>
       </div>
     </section>

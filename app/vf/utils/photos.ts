@@ -16,7 +16,6 @@ export interface PhotoNode {
 export const getPhotoCaption = (photo: Pick<PhotoNode, 'caption' | 'story'>) =>
   photo.caption?.trim() || photo.story?.trim() || ''
 
-export const PHOTO_GALAXY_STORAGE_KEY = 'photo_galaxy_user_nodes_v1'
 export const PHOTO_GALAXY_FAVORITES_KEY = 'photo_galaxy_favorites_v1'
 
 export const SEED_PHOTOS: PhotoNode[] = [
@@ -224,48 +223,6 @@ export const AVAILABLE_TAG_OPTIONS = [
   'Ocean',
 ]
 
-/** Load this browser's gallery, excluding the old built-in demo records. */
-export const loadStoredPhotos = (): PhotoNode[] => {
-  try {
-    const raw = localStorage.getItem(PHOTO_GALAXY_STORAGE_KEY)
-    if (raw) {
-      const parsed = JSON.parse(raw) as PhotoNode[]
-      if (Array.isArray(parsed)) {
-        return parsed.filter(
-          (photo): photo is PhotoNode =>
-            typeof photo?.id === 'number' &&
-            typeof photo?.title === 'string' &&
-            typeof photo?.imageUrl === 'string' &&
-            !photo.imageUrl.startsWith('blob:') &&
-            Array.isArray(photo?.tags) &&
-            typeof photo?.date === 'string' &&
-            !SEED_PHOTOS.some(
-              (seed) =>
-                seed.title === photo.title && seed.imageUrl === photo.imageUrl,
-            ),
-        )
-      }
-    }
-  } catch (err) {
-    console.warn('Could not read stored photos from localStorage:', err)
-  }
-  return []
-}
-
-/**
- * Persists photos into localStorage.
- */
-export const persistPhotos = (photos: PhotoNode[]): void => {
-  try {
-    localStorage.setItem(PHOTO_GALAXY_STORAGE_KEY, JSON.stringify(photos))
-  } catch (err) {
-    console.warn('Could not write photos to localStorage:', err)
-    throw new Error(
-      'Your browser storage is full. Remove a photo or use a smaller image, then try again.',
-    )
-  }
-}
-
 export const loadFavoritePhotoIds = (): number[] => {
   try {
     const value = JSON.parse(
@@ -387,8 +344,8 @@ export const loadImageElement = (src: string): Promise<HTMLImageElement> => {
   })
 }
 
-/** Compresses an uploaded image for durable, space-efficient local storage. */
-export const preparePhotoForStorage = (file: File): Promise<string> =>
+/** Encodes an uploaded image at the existing dimensions and quality as a Blob. */
+export const preparePhotoForStorage = (file: File): Promise<Blob> =>
   new Promise((resolve, reject) => {
     const objectUrl = URL.createObjectURL(file)
     const image = new Image()
@@ -408,7 +365,16 @@ export const preparePhotoForStorage = (file: File): Promise<string> =>
         return
       }
       context.drawImage(image, 0, 0, canvas.width, canvas.height)
-      resolve(canvas.toDataURL('image/jpeg', 0.82))
+      canvas.toBlob(
+        (blob) => {
+          canvas.width = 0
+          canvas.height = 0
+          if (blob) resolve(blob)
+          else reject(new Error('Could not encode this image for storage.'))
+        },
+        'image/jpeg',
+        0.82,
+      )
     }
     image.onerror = () => {
       URL.revokeObjectURL(objectUrl)

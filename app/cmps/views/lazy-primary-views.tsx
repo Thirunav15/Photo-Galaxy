@@ -1,5 +1,5 @@
 import { VOROFORCE_MODE } from '@/vf'
-import { lazy } from 'react'
+import { lazy, Suspense } from 'react'
 import { useShallowState } from '../../store'
 import { FadeTransition } from '../common/fade-transition'
 
@@ -15,7 +15,7 @@ function LazyPrimaryViews() {
       visible={loadViews}
       className='relative h-dvh w-full overflow-hidden'
     >
-      {loadViews && <PrimaryViews />}
+      <Suspense fallback={null}>{loadViews && <PrimaryViews />}</Suspense>
     </FadeTransition>
   )
 }

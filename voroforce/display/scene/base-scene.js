@@ -281,7 +281,7 @@ export default class BaseScene {
     this.resolutionUniform = [
       dimensions.width,
       dimensions.height,
-      this.appConfig.renderer?.pixelRatio ?? dimensions.pixelRatio,
+      this.app.renderer.getPixelRatio(dimensions),
     ]
   }
 

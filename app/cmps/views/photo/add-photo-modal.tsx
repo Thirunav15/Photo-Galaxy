@@ -6,6 +6,7 @@ import {
   type PhotoNode,
   preparePhotoForStorage,
 } from '@/vf/utils/photos'
+import type { NewPhotoRecord } from '@/vf/utils/photo-storage'
 import { Calendar, ImagePlus, MapPin, Sparkles, Tag, X } from 'lucide-react'
 import {
   type ChangeEvent,
@@ -248,7 +249,7 @@ export const AddPhotoModal = () => {
     let created: PhotoNode
     try {
       if (isBatchUpload) {
-        const photosToAdd: Omit<PhotoNode, 'id'>[] = []
+        const photosToAdd: NewPhotoRecord[] = []
         const missingTitleIndex = uploadFiles.findIndex(
           (_, index) => !(selectedPhotoDrafts[index]?.title ?? '').trim(),
         )
@@ -264,25 +265,25 @@ export const AddPhotoModal = () => {
           photosToAdd.push({
             title: draft.title.trim(),
             caption: draft.caption.trim() || undefined,
-            imageUrl: await preparePhotoForStorage(file),
+            imageBlob: await preparePhotoForStorage(file),
             location: draft.location.trim() || undefined,
             date: draft.date || new Date().toISOString().split('T')[0],
             tags: draft.tags,
           })
         }
-        const addedPhotos = addPhotos(photosToAdd)
+        const addedPhotos = await addPhotos(photosToAdd)
         created = addedPhotos[addedPhotos.length - 1]
       } else {
         const file = uploadFiles[0]
-        const newPhotoData: Omit<PhotoNode, 'id'> = {
+        const newPhotoData: NewPhotoRecord = {
           title: title.trim(),
           caption: caption.trim() || undefined,
-          imageUrl: await preparePhotoForStorage(file),
+          imageBlob: await preparePhotoForStorage(file),
           location: location.trim() || undefined,
           date: date || new Date().toISOString().split('T')[0],
           tags,
         }
-        created = addPhoto(newPhotoData)
+        created = await addPhoto(newPhotoData)
       }
     } catch (error) {
       setSaveError(

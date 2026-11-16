@@ -1,6 +1,5 @@
 import React from 'react'
 import config from '../../config'
-import telemetry from '../../utils/telemetry/micro-sentry-telemetry'
 
 type ErrorBoundaryState = {
   error: Error | null
@@ -21,12 +20,14 @@ export class ErrorBoundary extends React.Component<
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
     console.error('ErrorBoundary caught an error', error, info)
-    try {
-      telemetry.captureError(error, {
-        source: 'ErrorBoundary',
-        componentStack: info.componentStack,
+    void import('../../utils/telemetry/micro-sentry-telemetry')
+      .then(({ default: telemetry }) => {
+        telemetry.captureError(error, {
+          source: 'ErrorBoundary',
+          componentStack: info.componentStack,
+        })
       })
-    } catch {}
+      .catch(() => {})
   }
 
   private copyDetails = async () => {

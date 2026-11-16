@@ -9,8 +9,9 @@ export const defaultDisplayConfig = {
     premultipliedAlpha: false,
     antialias: false,
     backgroundColor: '#ffffff00',
-    // clearColor: [0, 1, 0, 1],
-    // pixelRatio: 1, // override device pixel ratio
+    // Raise to 2 to compare with the previous maximum DPR behavior.
+    maxPixelRatio: 1.25,
+    // pixelRatio: 1, // override device pixel ratio before applying the maximum
     scissor: {
       enabled: false,
       offset: {

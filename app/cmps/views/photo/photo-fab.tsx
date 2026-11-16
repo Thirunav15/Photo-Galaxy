@@ -15,6 +15,7 @@ export const PhotoFloatingActionOverlay = () => {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [manageOpen, setManageOpen] = useState(false)
   const [selectedIds, setSelectedIds] = useState<number[]>([])
+  const [deleteError, setDeleteError] = useState('')
 
   const {
     setUploadModalOpen,
@@ -25,21 +26,25 @@ export const PhotoFloatingActionOverlay = () => {
     photos,
     deletePhotos,
   } = useShallowState((state) => ({
-      setUploadModalOpen: state.setUploadModalOpen,
-      setPendingUploadFile: state.setPendingUploadFile,
-      setPendingUploadBatch: state.setPendingUploadBatch,
-      hasPhotos: state.photos.length > 0,
-      favoritesOpen: state.favoritesOpen,
-      photos: state.photos,
-      deletePhotos: state.deletePhotos,
-    }))
+    setUploadModalOpen: state.setUploadModalOpen,
+    setPendingUploadFile: state.setPendingUploadFile,
+    setPendingUploadBatch: state.setPendingUploadBatch,
+    hasPhotos: state.photos.length > 0,
+    favoritesOpen: state.favoritesOpen,
+    photos: state.photos,
+    deletePhotos: state.deletePhotos,
+  }))
 
   const handleFileSelect = (e: ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (files && files.length > 0) {
       const selectedFiles = Array.from(files)
-      setPendingUploadFile(selectedFiles.length === 1 ? selectedFiles[0] : undefined)
-      setPendingUploadBatch(selectedFiles.length > 1 ? selectedFiles : undefined)
+      setPendingUploadFile(
+        selectedFiles.length === 1 ? selectedFiles[0] : undefined,
+      )
+      setPendingUploadBatch(
+        selectedFiles.length > 1 ? selectedFiles : undefined,
+      )
       setUploadModalOpen(true)
       e.target.value = ''
     }
@@ -59,11 +64,20 @@ export const PhotoFloatingActionOverlay = () => {
     )
   }
 
-  const handleBulkDelete = () => {
+  const handleBulkDelete = async () => {
     if (selectedIds.length === 0) return
-    deletePhotos(selectedIds)
-    setSelectedIds([])
-    setManageOpen(false)
+    setDeleteError('')
+    try {
+      await deletePhotos(selectedIds)
+      setSelectedIds([])
+      setManageOpen(false)
+    } catch (error) {
+      setDeleteError(
+        error instanceof Error
+          ? error.message
+          : 'Selected photos could not be deleted.',
+      )
+    }
   }
 
   return (
@@ -121,7 +135,9 @@ export const PhotoFloatingActionOverlay = () => {
               {selectedIds.length} of {photos.length} selected
             </span>
             <Button type='button' variant='ghost' size='sm' onClick={toggleAll}>
-              {selectedIds.length === photos.length ? 'Clear selection' : 'Select all'}
+              {selectedIds.length === photos.length
+                ? 'Clear selection'
+                : 'Select all'}
             </Button>
           </div>
 
@@ -149,8 +165,17 @@ export const PhotoFloatingActionOverlay = () => {
             ))}
           </div>
 
+          {deleteError ? (
+            <p role='alert' className='text-sm text-rose-300'>
+              {deleteError}
+            </p>
+          ) : null}
           <DialogFooter className='flex-row justify-between border-t border-white/10 pt-3 sm:justify-between sm:space-x-0'>
-            <Button type='button' variant='ghost' onClick={() => setManageOpen(false)}>
+            <Button
+              type='button'
+              variant='ghost'
+              onClick={() => setManageOpen(false)}
+            >
               Cancel
             </Button>
             <Button

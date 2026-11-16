@@ -1,50 +1,72 @@
 import type { StateCreator } from 'zustand'
 import {
+  type NewPhotoRecord,
+  explainPhotoStorageError,
+  initializeStoredPhotos,
+  persistNewPhotos,
+  persistPhotoMetadata,
+  removePersistedPhotos,
+} from '../vf/utils/photo-storage'
+import {
   type PhotoNode,
   clusterPhotosByTagOrDate,
   loadFavoritePhotoIds,
-  loadStoredPhotos,
   persistFavoritePhotoIds,
-  persistPhotos,
 } from '../vf/utils/photos'
 
 export interface PhotoDataSlice {
-  // Photo Galaxy Core Data
   photos: PhotoNode[]
+  photoStorageReady: boolean
+  photoStorageError?: string
+  initializePhotoStorage: () => Promise<void>
+  retryPhotoStorage: () => Promise<void>
   favoritePhotoIds: number[]
   toggleFavoritePhoto: (id: number) => void
-  setPhotos: (photos: PhotoNode[]) => void
+  setPhotos: (photos: PhotoNode[]) => Promise<void>
   activePhoto?: PhotoNode
   setActivePhoto: (photo?: PhotoNode) => void
-  addPhoto: (newPhotoData: Omit<PhotoNode, 'id'>) => PhotoNode
-  addPhotos: (newPhotosData: Omit<PhotoNode, 'id'>[]) => PhotoNode[]
-  deletePhoto: (id: number) => void
-  deletePhotos: (ids: number[]) => void
-  updatePhotoTags: (id: number, tags: string[]) => void
+  addPhoto: (newPhotoData: NewPhotoRecord) => Promise<PhotoNode>
+  addPhotos: (newPhotosData: NewPhotoRecord[]) => Promise<PhotoNode[]>
+  deletePhoto: (id: number) => Promise<void>
+  deletePhotos: (ids: number[]) => Promise<void>
+  updatePhotoTags: (id: number, tags: string[]) => Promise<void>
   updatePhotoDetails: (
     id: number,
     details: Partial<
       Pick<PhotoNode, 'title' | 'caption' | 'date' | 'location' | 'tags'>
     >,
-  ) => void
-
-  // Search & Filtering
+  ) => Promise<void>
   searchQuery: string
   setSearchQuery: (query: string) => void
   activeFilterTag?: string
   setActiveFilterTag: (tag?: string) => void
-
-  // Upload UI State
   uploadModalOpen: boolean
   setUploadModalOpen: (open: boolean) => void
   pendingUploadFile?: File
   setPendingUploadFile: (file?: File) => void
   pendingUploadBatch?: File[]
   setPendingUploadBatch: (files?: File[]) => void
-
-  // Edit Tags UI State
   editTagsModalOpen: boolean
   setEditTagsModalOpen: (open: boolean) => void
+}
+
+const fallbackPhotos = (): PhotoNode[] => {
+  try {
+    const raw = localStorage.getItem('photo_galaxy_user_nodes_v1')
+    const parsed: unknown = raw ? JSON.parse(raw) : []
+    return Array.isArray(parsed)
+      ? parsed.filter(
+          (photo): photo is PhotoNode =>
+            typeof photo?.id === 'number' &&
+            typeof photo?.title === 'string' &&
+            typeof photo?.imageUrl === 'string' &&
+            Array.isArray(photo?.tags) &&
+            typeof photo?.date === 'string',
+        )
+      : []
+  } catch {
+    return []
+  }
 }
 
 export const createPhotoDataSlice: StateCreator<
@@ -53,73 +75,90 @@ export const createPhotoDataSlice: StateCreator<
   [],
   PhotoDataSlice
 > = (set, get) => {
-  const initialPhotos = clusterPhotosByTagOrDate(loadStoredPhotos())
+  const ensureStorageReady = () => {
+    const state = get()
+    if (!state.photoStorageReady || state.photoStorageError) {
+      throw new Error(
+        state.photoStorageError ||
+          'Photo storage is still initializing. Retry before making changes.',
+      )
+    }
+  }
 
-  return {
-    photos: initialPhotos,
-    setPhotos: (photos: PhotoNode[]) => {
-      persistPhotos(photos)
+  const initialize = async () => {
+    set({ photoStorageReady: false })
+    try {
+      const photos = clusterPhotosByTagOrDate(await initializeStoredPhotos())
       set({
         photos,
-        activePhoto: get().activePhoto ?? photos[0],
+        activePhoto: photos[0],
+        photoStorageReady: true,
+        photoStorageError: undefined,
       })
-    },
-    activePhoto: initialPhotos[0],
-    setActivePhoto: (photo?: PhotoNode) => {
+    } catch (error) {
+      const message = explainPhotoStorageError(error)
+      const photos = clusterPhotosByTagOrDate(fallbackPhotos())
       set({
-        activePhoto: photo,
+        photos,
+        activePhoto: photos[0],
+        photoStorageReady: true,
+        photoStorageError: message,
       })
-    },
-    addPhoto: (newPhotoData: Omit<PhotoNode, 'id'>) => {
-      const current = get().photos
-      const nextId =
-        current.length > 0
-          ? Math.max(...current.map((p) => Number(p.id) || 0)) + 1
-          : 1
-      const cellId =
-        current.reduce(
-          (max, photo, index) => Math.max(max, photo.cellId ?? index),
-          -1,
-        ) + 1
-      const newPhoto: PhotoNode = {
-        ...newPhotoData,
-        id: nextId,
-        cellId,
-      }
-      const updated = [...current, newPhoto]
-      persistPhotos(updated)
-      set({
-        photos: updated,
-        activePhoto: newPhoto,
-      })
-      return newPhoto
-    },
-    addPhotos: (newPhotosData: Omit<PhotoNode, 'id'>[]) => {
-      if (newPhotosData.length === 0) return []
+    }
+  }
 
+  return {
+    photos: [],
+    photoStorageReady: false,
+    photoStorageError: undefined,
+    initializePhotoStorage: initialize,
+    retryPhotoStorage: initialize,
+    setPhotos: async (photos) => {
+      ensureStorageReady()
+      if (get().photos.length > 0) {
+        throw new Error(
+          'The gallery can only be initialized with sample photos when it is empty.',
+        )
+      }
+      const saved = await persistNewPhotos(photos.map((photo) => ({ photo })))
+      set({ photos: saved, activePhoto: saved[0] })
+    },
+    activePhoto: undefined,
+    setActivePhoto: (photo) => set({ activePhoto: photo }),
+    addPhoto: async (newPhotoData) => {
+      const [photo] = await get().addPhotos([newPhotoData])
+      return photo
+    },
+    addPhotos: async (newPhotosData) => {
+      ensureStorageReady()
+      if (newPhotosData.length === 0) return []
       const current = get().photos
       const nextId =
-        current.length > 0
-          ? Math.max(...current.map((p) => Number(p.id) || 0)) + 1
-          : 1
+        current.reduce(
+          (max, photo) => Math.max(max, Number(photo.id) || 0),
+          0,
+        ) + 1
       const nextCellId =
         current.reduce(
           (max, photo, index) => Math.max(max, photo.cellId ?? index),
           -1,
         ) + 1
-      const newPhotos = newPhotosData.map((photo, index) => ({
-        ...photo,
-        id: nextId + index,
-        cellId: nextCellId + index,
+      const entries = newPhotosData.map(({ imageBlob, ...photo }, index) => ({
+        photo: {
+          ...photo,
+          id: nextId + index,
+          cellId: nextCellId + index,
+          imageUrl: '',
+        },
+        imageBlob,
       }))
-      const updated = [...current, ...newPhotos]
-
-      persistPhotos(updated)
-      set({ photos: updated, activePhoto: newPhotos[newPhotos.length - 1] })
-      return newPhotos
+      const saved = await persistNewPhotos(entries)
+      const updated = [...current, ...saved]
+      set({ photos: updated, activePhoto: saved[saved.length - 1] })
+      return saved
     },
     favoritePhotoIds: loadFavoritePhotoIds(),
-    toggleFavoritePhoto: (id: number) => {
+    toggleFavoritePhoto: (id) => {
       const ids = get().favoritePhotoIds
       const next = ids.includes(id)
         ? ids.filter((favoriteId) => favoriteId !== id)
@@ -127,72 +166,53 @@ export const createPhotoDataSlice: StateCreator<
       persistFavoritePhotoIds(next)
       set({ favoritePhotoIds: next })
     },
-    deletePhoto: (id: number) => {
-      const current = get().photos
-      const updated = current.filter((p) => p.id !== id)
-      persistPhotos(updated)
-      const favoritePhotoIds = get().favoritePhotoIds.filter(
-        (favoriteId) => favoriteId !== id,
-      )
-      persistFavoritePhotoIds(favoritePhotoIds)
-      set({
-        photos: updated,
-        favoritePhotoIds,
-        activePhoto: updated[0] ?? undefined,
-      })
-    },
-    deletePhotos: (ids: number[]) => {
+    deletePhoto: async (id) => get().deletePhotos([id]),
+    deletePhotos: async (ids) => {
+      ensureStorageReady()
       const idsToDelete = new Set(ids)
-      const updated = get().photos.filter((photo) => !idsToDelete.has(photo.id))
-      const favoritePhotoIds = get().favoritePhotoIds.filter(
-        (favoriteId) => !idsToDelete.has(favoriteId),
-      )
-      persistPhotos(updated)
-      persistFavoritePhotoIds(favoritePhotoIds)
-      set({
-        photos: updated,
-        favoritePhotoIds,
-        activePhoto: updated[0] ?? undefined,
-      })
-    },
-    updatePhotoTags: (id: number, tags: string[]) => {
       const current = get().photos
-      const updated = current.map((p) => (p.id === id ? { ...p, tags } : p))
-      persistPhotos(updated)
-      const active = get().activePhoto
-      set({
-        photos: updated,
-        activePhoto: active?.id === id ? { ...active, tags } : active,
-      })
+      const updated = current.filter((photo) => !idsToDelete.has(photo.id))
+      const favoritePhotoIds = get().favoritePhotoIds.filter(
+        (id) => !idsToDelete.has(id),
+      )
+      await removePersistedPhotos([...idsToDelete])
+      try {
+        persistFavoritePhotoIds(favoritePhotoIds)
+      } catch (error) {
+        console.warn(
+          'Could not update saved favorites after deleting photos:',
+          error,
+        )
+      }
+      set({ photos: updated, favoritePhotoIds, activePhoto: updated[0] })
     },
-    updatePhotoDetails: (id, details) => {
-      const updated = get().photos.map((photo) =>
+    updatePhotoTags: async (id, tags) => get().updatePhotoDetails(id, { tags }),
+    updatePhotoDetails: async (id, details) => {
+      ensureStorageReady()
+      const current = get().photos
+      const updated = current.map((photo) =>
         photo.id === id ? { ...photo, ...details } : photo,
       )
-      persistPhotos(updated)
+      const changed = updated.find((photo) => photo.id === id)
+      if (!changed) return
+      await persistPhotoMetadata([changed])
       const active = get().activePhoto
       set({
         photos: updated,
         activePhoto: active?.id === id ? { ...active, ...details } : active,
       })
     },
-
     searchQuery: '',
-    setSearchQuery: (searchQuery: string) => set({ searchQuery }),
+    setSearchQuery: (searchQuery) => set({ searchQuery }),
     activeFilterTag: undefined,
-    setActiveFilterTag: (activeFilterTag?: string) => set({ activeFilterTag }),
-
+    setActiveFilterTag: (activeFilterTag) => set({ activeFilterTag }),
     uploadModalOpen: false,
-    setUploadModalOpen: (uploadModalOpen: boolean) => set({ uploadModalOpen }),
+    setUploadModalOpen: (uploadModalOpen) => set({ uploadModalOpen }),
     pendingUploadFile: undefined,
-    setPendingUploadFile: (pendingUploadFile?: File) =>
-      set({ pendingUploadFile }),
+    setPendingUploadFile: (pendingUploadFile) => set({ pendingUploadFile }),
     pendingUploadBatch: undefined,
-    setPendingUploadBatch: (pendingUploadBatch?: File[]) =>
-      set({ pendingUploadBatch }),
-
+    setPendingUploadBatch: (pendingUploadBatch) => set({ pendingUploadBatch }),
     editTagsModalOpen: false,
-    setEditTagsModalOpen: (editTagsModalOpen: boolean) =>
-      set({ editTagsModalOpen }),
+    setEditTagsModalOpen: (editTagsModalOpen) => set({ editTagsModalOpen }),
   }
 }

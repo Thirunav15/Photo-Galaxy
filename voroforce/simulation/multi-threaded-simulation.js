@@ -2,6 +2,7 @@ import BaseSimulation from './base-simulation'
 
 export default class MultiThreadedSimulation extends BaseSimulation {
   workers = []
+  neighborsNeedUpdate = true
 
   constructor(store, options) {
     super(store, options)
@@ -60,15 +61,19 @@ export default class MultiThreadedSimulation extends BaseSimulation {
   }
 
   update() {
-    // this.updatingWorkersCount = this.workers.length
-    this.updatingWorkersCount += this.workers.length // TODO
-    for (let i = 0; i < this.workers.length; i++) {
-      this.workers[i].postMessage({ type: 'update' })
+    this.updatingWorkersCount++
+    this.forceWorker.postMessage({ type: 'update' })
+
+    if (this.neighborsNeedUpdate) {
+      this.neighborsNeedUpdate = false
+      this.updatingWorkersCount++
+      this.neighborsWorker.postMessage({ type: 'update' })
     }
   }
 
   resize(dimensions, onResize) {
     this.resizingWorkersCount = this.workers.length
+    this.neighborsNeedUpdate = true
 
     const config = this.store.getSimulationWorkerConfig()
     for (let i = 0; i < this.resizingWorkersCount; i++) {
@@ -114,6 +119,7 @@ export default class MultiThreadedSimulation extends BaseSimulation {
   }
 
   updateWorkerConfig(worker) {
+    if (worker === this.neighborsWorker) this.neighborsNeedUpdate = true
     worker.postMessage({
       type: 'setConfig',
       data: this.store.getSimulationWorkerConfig(),
